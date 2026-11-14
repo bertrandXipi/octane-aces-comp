@@ -4,3 +4,9 @@ dist/
 __pycache__/
 .DS_Store
 *.log
+.venv/
+demo/
+demo_small/
+rendu/
+*.exr
+*.mov
