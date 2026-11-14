@@ -92,6 +92,8 @@ class Viewer(QOpenGLWidget):
         self._overlay(has_media)
 
     def _overlay(self, has_media):
+        """Traits seulement : le texte QPainter sur un contexte partagé avec ModernGL
+        sort brouillé (cache de glyphes), les textes vont dans la barre d'info."""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         d = self.dpr()
@@ -99,29 +101,16 @@ class Viewer(QOpenGLWidget):
             l, t, r, b = (v / d for v in self.image_rect_px())
             p.setPen(QPen(QColor(90, 90, 90), 1))
             p.drawRect(int(l) - 1, int(t) - 1, int(r - l) + 1, int(b - t) + 1)
-            p.setFont(QFont("Menlo", 9))
-            p.setPen(QColor(150, 150, 150))
-            iw, ih = self.engine.size
-            p.drawText(int(r) + 4, int(b) + 12, f"{iw},{ih}")
-            p.drawText(int(l) - 4 - 8, int(t) - 4, "0,0")
             if self.view.mode == 2:
                 x = l + (r - l) * self.view.wipe
                 p.setPen(QPen(QColor(240, 150, 46), 1))
                 p.drawLine(int(x), int(t) - 14, int(x), int(b) + 14)
                 p.setBrush(QColor(240, 150, 46))
                 p.drawEllipse(QPointF(x, (t + b) / 2), 5, 5)
-                p.setPen(QColor(220, 220, 220))
-                p.drawText(int(l) + 6, int(t) + 16, "A")
-                p.drawText(int(r) - 14, int(t) + 16, "B")
-        else:
-            p.setPen(QColor(110, 110, 110))
-            p.setFont(QFont("Helvetica Neue", 13))
-            p.drawText(self.rect(), Qt.AlignCenter,
-                       "Aucun média\nFichier ▸ Lire le rush (R)  ·  Fichier ▸ Lire les passes Octane (Maj+R)")
         if self.pick_mode:
-            p.setPen(QColor(240, 150, 46))
-            p.setFont(QFont("Helvetica Neue", 11))
-            p.drawText(10, self.height() - 10, "Pipette Cryptomatte active — clic : ajouter · Maj+clic : retirer · Échap : quitter")
+            p.setPen(QPen(QColor(240, 150, 46), 2))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(1, 1, self.width() - 2, self.height() - 2)
         p.end()
 
     # ------------------------------------------------------------ souris

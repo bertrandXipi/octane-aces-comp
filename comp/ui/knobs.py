@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
                                QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
                                QSlider, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-LABEL_W = 104
+LABEL_W = 96
 
 
 def _label(text: str) -> QLabel:
@@ -33,9 +33,10 @@ class FloatKnob(QWidget):
         self.spin.setRange(*hard)
         self.spin.setDecimals(decimals)
         self.spin.setSingleStep(10 ** -min(decimals, 2))
-        self.spin.setFixedWidth(64)
+        self.spin.setFixedWidth(58)
         self.spin.setKeyboardTracking(False)
         self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMinimumWidth(40)
         self.slider.setRange(0, 1000)
         self.slider.setToolTip("Double-clic : valeur par défaut")
         lay.addWidget(self.spin)
@@ -144,6 +145,7 @@ class FileKnob(QWidget):
         lay.setSpacing(3)
         self.edit = QLineEdit()
         self.edit.setPlaceholderText("chemin, motif #### ou dossier")
+        self.edit.setMinimumWidth(60)
         self.edit.editingFinished.connect(lambda: self.changed.emit(self.edit.text().strip()))
         b = QToolButton()
         b.setText("…")
@@ -153,7 +155,8 @@ class FileKnob(QWidget):
         lay.addWidget(b)
         if directory_ok:
             d = QToolButton()
-            d.setText("dossier")
+            d.setText("dir")
+            d.setToolTip("Choisir un dossier de séquence")
             d.clicked.connect(self._browse_dir)
             lay.addWidget(d)
         self.caption, self.filt = caption, filt
@@ -202,8 +205,11 @@ class MatteKnob(QWidget):
         clear = QToolButton()
         clear.setText("Vider")
         clear.clicked.connect(lambda: self.set_objects([], emit=True))
-        self.invert = QCheckBox("inverser")
+        self.invert = QCheckBox("inv.")
+        self.invert.setToolTip("Inverser le masque")
         self.invert.toggled.connect(lambda _: self.changed.emit())
+        for b in (self.pick, self.add, clear):
+            b.setStyleSheet("padding: 2px 7px;")
         row.addWidget(self.pick)
         row.addWidget(self.add)
         row.addWidget(clear)

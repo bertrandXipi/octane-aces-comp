@@ -253,7 +253,6 @@ class MainWindow(QMainWindow):
         self._play_t = time.perf_counter()
         self._play_count = 0
         self.setWindowTitle("Octane Comp — ACES")
-        self.resize(1560, 940)
 
         self.viewer = Viewer(self.s)
         self.viewer.ready.connect(self._viewer_ready)
@@ -273,11 +272,11 @@ class MainWindow(QMainWindow):
         main = QSplitter(Qt.Horizontal)
         main.addWidget(left)
         props = self._wrap_tab(self._properties(), "Properties")
-        props.setMinimumWidth(440)
+        props.setMinimumWidth(400)
         main.addWidget(props)
         main.setStretchFactor(0, 3)
         main.setStretchFactor(1, 1)
-        main.setSizes([1120, 440])
+        main.setSizes([1100, 400])
         self.setCentralWidget(main)
 
         self._menus()
@@ -292,6 +291,17 @@ class MainWindow(QMainWindow):
         self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self._tick)
         self.refresh_knobs()
+        self._fit_screen()
+
+    def _fit_screen(self):
+        """Taille et position adaptées à l'écran (jamais plus grand que la zone utile)."""
+        from PySide6.QtGui import QGuiApplication
+        g = QGuiApplication.primaryScreen().availableGeometry()
+        # marge pour Stage Manager / Dock latéral, que Qt ne retire pas de la zone utile
+        w = max(min(1500, g.width() - 240), min(self.minimumSizeHint().width(), g.width()))
+        h = min(960, int(g.height() * 0.94))
+        self.resize(w, h)
+        self.move(g.x() + g.width() - w - 12, g.y() + (g.height() - h) // 2)
 
     # ------------------------------------------------------------------ construction
     def _wrap_tab(self, w, title):
@@ -339,9 +349,14 @@ class MainWindow(QMainWindow):
     def _viewer_bar(self):
         bar = QWidget()
         bar.setObjectName("ViewerBar")
-        h = QHBoxLayout(bar)
-        h.setContentsMargins(6, 3, 6, 3)
+        rows = QVBoxLayout(bar)
+        rows.setContentsMargins(6, 3, 6, 3)
+        rows.setSpacing(3)
+        h, h2 = QHBoxLayout(), QHBoxLayout()   # deux lignes d'outils, comme un viewer de compositing
         h.setSpacing(6)
+        h2.setSpacing(6)
+        rows.addLayout(h)
+        rows.addLayout(h2)
         self.ch = K.combo(["rgba", "red", "green", "blue", "alpha", "luminance"], "rgba",
                           lambda t: self._view("channel", ["rgba", "red", "green", "blue", "alpha", "luminance"].index(t)))
         self.ch.setToolTip("Canal affiché (R, G, B, A comme dans un viewer de compositing)")
@@ -359,22 +374,30 @@ class MainWindow(QMainWindow):
                           lambda t: self._view("overlay", ["off", "CG", "reflets", "ombres"].index(t) - 1))
         self.ov.setToolTip("Superposer le masque Cryptomatte d'un réglage")
         h.addWidget(self.ov)
-        h.addStretch(1)
-        h.addWidget(QLabel("f/stop"))
+        h2.addWidget(QLabel("f/stop"))
         self.expo = K.FloatKnob(-6, 6, 0.0, 2)
-        self.expo.setFixedWidth(170)
+        self.expo.setMaximumWidth(280)
         self.expo.changed.connect(lambda v: self._view("exposure", v))
-        h.addWidget(self.expo)
-        h.addWidget(QLabel("γ"))
+        h2.addWidget(self.expo, 1)
+        h2.addSpacing(10)
+        h2.addWidget(QLabel("γ"))
         self.gam = K.FloatKnob(0.2, 3.0, 1.0, 2)
-        self.gam.setFixedWidth(150)
+        self.gam.setMaximumWidth(240)
         self.gam.changed.connect(lambda v: self._view("gamma", v))
-        h.addWidget(self.gam)
+        h2.addWidget(self.gam, 1)
+        h2.addStretch(2)
         self.disp = K.combo(color.displays(), self.s.display, self._display_changed)
         self.vw = K.combo(color.views(self.s.display), self.s.view, self._view_changed)
         self.disp.setToolTip("Display OCIO")
         self.vw.setToolTip("View OCIO (Output Transform ACES)")
-        self.vw.setMinimumWidth(200)
+        for c in (self.ch, self.bsrc, self.ov, self.disp, self.vw):
+            c.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            c.setMinimumContentsLength(3)
+        self.vw.setMinimumContentsLength(14)
+        self.disp.setMinimumContentsLength(8)
+        for k in (self.expo, self.gam):
+            k.slider.setMinimumWidth(24)
+        h.addStretch(1)
         h.addWidget(self.disp)
         h.addWidget(self.vw)
         return bar
@@ -423,6 +446,7 @@ class MainWindow(QMainWindow):
         s = self.s
         area = QScrollArea()
         area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # le contenu s'adapte à la largeur
         host = QWidget()
         self.props_layout = QVBoxLayout(host)
         self.props_layout.setContentsMargins(0, 0, 0, 0)
@@ -698,6 +722,8 @@ class MainWindow(QMainWindow):
             w.setValue(v)
             w.blockSignals(False)
         self.loader.prefetch(i + 1)
+        if not self.viewer.underMouse():
+            self.info.setText(self._idle_info())
 
     def _upload_masks(self):
         if not self.viewer.engine:
@@ -748,6 +774,7 @@ class MainWindow(QMainWindow):
     def _view(self, attr, value):
         setattr(self.viewer.view, attr, value)
         self.viewer.update()
+        self.info.setText(self._idle_info())
 
     def _set_mode(self, i):
         self.ab.buttons[i].setChecked(True)
@@ -791,11 +818,21 @@ class MainWindow(QMainWindow):
     def _gpu_ms(self, ms):
         self.st_gpu.setText(f"GPU {ms:.2f} ms  ")
 
+    def _idle_info(self):
+        if self.picking:
+            return "PIPETTE CRYPTOMATTE  ·  clic : ajouter l'objet  ·  Maj+clic : retirer  ·  Échap : quitter"
+        if not len(self.loader):
+            return "Aucun média  ·  Fichier ▸ Lire le rush (R)  ·  Fichier ▸ Lire les passes Octane (Maj+R)"
+        iw, ih = self.viewer.engine.size if self.viewer.engine else (0, 0)
+        ab = ["A", "B", "wipe A | B", "différence"][self.viewer.view.mode]
+        return f"{iw}×{ih}  ·  frame {self.frame + 1}/{len(self.loader)}  ·  vue {ab}"
+
     def _hover(self, x, y, px):
         if px is None:
-            self.info.setText(" ")
+            self.info.setText(self._idle_info())
             return
-        txt = f"x {x:<5d} y {y:<5d}   R {px[0]:8.4f}  G {px[1]:8.4f}  B {px[2]:8.4f}  A {px[3]:6.3f}   ACEScg"
+        pre = "PIPETTE  ·  " if self.picking else ""
+        txt = pre + f"x {x:<5d} y {y:<5d}   R {px[0]:8.4f}  G {px[1]:8.4f}  B {px[2]:8.4f}  A {px[3]:6.3f}   ACEScg"
         name = None
         if self.cg_cur and self.cg_cur.crypto:
             lay = next((c for c in self.cg_cur.crypto if c.name == self.crypto_layer.currentText()), self.cg_cur.crypto[0])
@@ -824,6 +861,7 @@ class MainWindow(QMainWindow):
         else:
             self.picking = None
         self.viewer.pick_mode = self.picking is not None
+        self.info.setText(self._idle_info())
         self.viewer.setCursor(Qt.CrossCursor if self.picking else Qt.ArrowCursor)
         self.viewer.update()
 
