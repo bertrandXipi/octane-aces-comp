@@ -19,3 +19,34 @@ Definition of Done :
 - La commande batch traite les 900 frames en rendu offscreen conforme à la prévisualisation.
 
 _Projet créé depuis le cockpit le 2026-11-14._
+
+## Utilisation
+
+Prérequis : macOS/Linux, ffmpeg dans le PATH, `uv`. Le premier lancement crée `.venv`.
+
+    ./octacomp                                   # interface
+    ./octacomp demo/reglages_demo.json           # interface + réglages
+    ./octacomp batch demo/reglages_demo.json -o rendu/ -f exr      # EXR half ACEScg
+    ./octacomp batch demo/reglages_demo.json -o rendu/comp.mov -f prores
+    ./octacomp batch reglages.json -o rendu/ -f tiff               # TIFF 16 bits affiché
+
+Jeu de test (900 frames, rush ProRes F-Log2 + EXR Octane avec Cryptomatte) :
+
+    .venv/bin/python scripts/make_demo.py --frames 900 --size 960x540 --out demo
+    .venv/bin/python scripts/conformite.py demo/reglages_demo.json demo/rendu_exr 450
+
+### Pipeline couleur
+- Config OCIO intégrée `studio-config` (ACES 2.0) + **F-Log2 F-Gamut** ajouté (courbe Fujifilm, primaires Rec.2020).
+- Rush : valeurs code → ACEScg dans le shader (GLSL généré par OCIO). Passes Octane : espace réglable (ACEScg par défaut).
+- Compositing en ACEScg linéaire ; Output Transform OCIO (display/view, ACES 2.0 SDR par défaut) au viewer et en sortie TIFF/ProRes.
+- Le batch utilise exactement le même moteur GPU (contexte offscreen) que le viewer.
+
+### Interface (inspirée Nuke)
+Viewer (canaux, A/B, wipe, différence, f/stop, γ, display/view, lecture pixel ACEScg + objet Cryptomatte sous le curseur),
+timeline (J/K/L, ←/→, Espace), Node Graph (clic = panneau), Properties : Read1 rush, Read2 EXR, Cryptomatte1,
+Recompose1 (gain, diffuse, balance/teinte reflets + matte), ShadowCatcher1 (densité, couleur + matte), Merge1 (matte CG), OCIODisplay1.
+Pipette Cryptomatte : bouton « Pipette » puis clic dans le viewer (Maj+clic retire). Raccourcis : F cadrer, H 1:1, W wipe, D diff, 1/2 A/B, ⌘S, F7 rendu.
+
+### Passes reconnues
+Beauty = canaux sans préfixe (ou couche beauty/rgba), `Diffuse`, `Reflection`/`Specular`, `Shadow`, Cryptomatte selon la spec (métadonnées `cryptomatte/<id>/…`).
+Modèle : `cg = beauty + (k_diff−1)·diffuse + (k_refl·teinte−1)·reflection·matte`, ombre `bg·mix(1, couleur, shadow·densité·matte)`, puis over.

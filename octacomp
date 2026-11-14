@@ -1,0 +1,6 @@
+#!/bin/sh
+# Lance l'application (ou le batch : ./octacomp batch reglages.json -o rendu/)
+cd "$(dirname "$0")"
+[ -x .venv/bin/python ] || { uv venv -p 3.11 .venv -q && uv pip install -p .venv/bin/python -q -r requirements.txt; }
+if [ "$1" = "batch" ]; then shift; exec .venv/bin/python -m comp.batch "$@"; fi
+exec .venv/bin/python -m comp "$@"

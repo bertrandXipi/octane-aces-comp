@@ -27,7 +27,7 @@ class Sources:
 
     def __init__(self, s: CompSettings):
         self.s = s
-        self.plate = PlateSequence(s.plate_path, s.plate_space) if s.plate_path else None
+        self.plate = PlateSequence(s.plate_path, s.plate_space, convert=False) if s.plate_path else None
         self.cg = CGSequence(s.cg_path, s.cg_space) if s.cg_path else None
         if not (self.plate or self.cg):
             raise ValueError("Ni rush ni séquence CG dans les réglages")
@@ -82,6 +82,7 @@ def render(settings_path: str, out: str, fmt: str = "exr", start: int = 0, end: 
     ctx = moderngl.create_standalone_context(require=410)
     eng = Engine(ctx)
     eng.set_display(s.display, s.view)
+    eng.set_input(s.plate_space)
     view = ViewParams()
 
     w = h = 0

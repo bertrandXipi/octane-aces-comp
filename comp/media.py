@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
@@ -74,15 +75,16 @@ def group_layers(chans: dict[str, np.ndarray]) -> dict[str, dict[str, np.ndarray
 
 
 def layer_rgba(layer: dict[str, np.ndarray], alpha_default: float = 1.0) -> np.ndarray:
-    any_px = next(iter(layer.values()))
-    h, w = any_px.shape
-    out = np.empty((h, w, 4), np.float32)
+    """Couche -> HxWx4. Reste en half si l'EXR est en half (moitié moins de mémoire et d'upload GPU)."""
     keys = list(layer)
-    for i, c in enumerate("RGB"):
-        src = layer.get(c, layer.get("Y", layer.get(keys[0])))
-        out[..., i] = src
-    out[..., 3] = layer.get("A", np.full((h, w), alpha_default, np.float32))
-    return out
+    first = layer[keys[0]]
+    dt = np.float16 if all(v.dtype == np.float16 for v in layer.values()) else np.float32
+    h, w = first.shape
+    rgb = [layer.get(c, layer.get("Y", first)) for c in "RGB"]
+    a = layer.get("A")
+    if a is None:
+        a = np.full((h, w), alpha_default, dt)
+    return np.stack([*rgb, a], -1).astype(dt, copy=False)
 
 
 def detect_roles(layer_names: list[str]) -> dict[str, str]:
@@ -120,8 +122,9 @@ def load_cg_frame(path: str, input_space: str = color.WORKING, roles: dict | Non
     passes = {}
     for role, lname in found.items():
         rgba = layer_rgba(layers[lname], 1.0 if role == "beauty" else 0.0)
-        if role != "shadow":  # le shadow est un masque, pas une couleur
-            rgba[..., :3] = color.to_working(rgba[..., :3].copy(), input_space)
+        if role != "shadow" and input_space != color.WORKING:  # le shadow est un masque, pas une couleur
+            conv = color.to_working(rgba[..., :3].astype(np.float32), input_space)
+            rgba = np.concatenate([conv, rgba[..., 3:].astype(np.float32)], -1).astype(rgba.dtype)
         passes[role] = rgba
     h, w = next(iter(chans.values())).shape
     if "beauty" not in passes:
@@ -137,19 +140,22 @@ class CGSequence:
         self.input_space, self.roles = input_space, roles or {}
         self._cache: OrderedDict[int, CGFrame] = OrderedDict()
         self._cache_n = cache
+        self._lock = threading.Lock()
 
     def __len__(self):
         return len(self.files)
 
     def frame(self, i: int) -> CGFrame:
         i = max(0, min(i, len(self.files) - 1))
-        if i in self._cache:
-            self._cache.move_to_end(i)
-            return self._cache[i]
-        fr = load_cg_frame(self.files[i], self.input_space, self.roles)
-        self._cache[i] = fr
-        while len(self._cache) > self._cache_n:
-            self._cache.popitem(last=False)
+        with self._lock:
+            if i in self._cache:
+                self._cache.move_to_end(i)
+                return self._cache[i]
+        fr = load_cg_frame(self.files[i], self.input_space, self.roles)  # hors verrou : décodage parallèle
+        with self._lock:
+            self._cache[i] = fr
+            while len(self._cache) > self._cache_n:
+                self._cache.popitem(last=False)
         return fr
 
 
@@ -217,9 +223,10 @@ class _VideoStream:
 
 
 class PlateSequence:
-    """Rush (vidéo MOV/MP4/MXF, séquence d'images ou image fixe) converti en ACEScg."""
+    """Rush (vidéo MOV/MP4/MXF, séquence d'images ou image fixe), converti en ACEScg si convert."""
 
-    def __init__(self, path: str, input_space: str = color.FLOG2, cache: int = 24):
+    def __init__(self, path: str, input_space: str = color.FLOG2, cache: int = 24, convert: bool = True):
+        self.convert = convert  # False : valeurs code brutes, la conversion se fait sur GPU
         self.path = os.path.expanduser(path)
         self.input_space = input_space
         ext = os.path.splitext(self.path)[1].lower()
@@ -234,19 +241,29 @@ class PlateSequence:
                 raise FileNotFoundError(f"Rush introuvable : {path}")
             self.n = len(self.files)
             self.fps = 24.0
+        self.half = False  # True côté viewer (mémoire / upload) ; le batch garde du float32
         self._cache: OrderedDict[int, np.ndarray] = OrderedDict()
         self._cache_n = cache
+        self._lock = threading.RLock()
 
     def __len__(self):
         return self.n
 
     def frame(self, i: int) -> np.ndarray:
+        with self._lock:
+            return self._frame(i)
+
+    def _frame(self, i: int) -> np.ndarray:
         i = max(0, min(i, self.n - 1))
         if i in self._cache:
             self._cache.move_to_end(i)
             return self._cache[i]
         raw = self.video.read(i) if self.video else read_image_rgb(self.files[i])
-        rgb = color.to_working(np.ascontiguousarray(raw, np.float32).copy(), self.input_space)
+        rgb = np.ascontiguousarray(raw, np.float32)
+        if self.convert:
+            rgb = color.to_working(rgb.copy(), self.input_space)
+        if self.half:
+            rgb = rgb.astype(np.float16)
         self._cache[i] = rgb
         while len(self._cache) > self._cache_n:
             self._cache.popitem(last=False)

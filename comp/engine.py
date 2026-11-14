@@ -22,8 +22,10 @@ void main() {
 }
 """
 
-COMP_FRAG = """
+COMP_FRAG_HEAD = """
 #version 410 core
+"""
+COMP_FRAG = """
 in vec2 uv;
 out vec4 frag;
 uniform sampler2D t_plate, t_beauty, t_diffuse, t_refl, t_shadow, t_masks;
@@ -41,7 +43,7 @@ float maskw(float raw, vec3 p) {
 }
 
 void main() {
-    vec3 bg = has_plate ? texture(t_plate, uv).rgb * exp2(plate_exp) : vec3(0.0);
+    vec3 bg = has_plate ? OCIOInput(vec4(texture(t_plate, uv).rgb, 1.0)).rgb * exp2(plate_exp) : vec3(0.0);
     if (!has_cg) { frag = vec4(bg, 1.0); return; }
     vec4 b = texture(t_beauty, uv);
     vec3 m = texture(t_masks, uv).rgb;
@@ -124,7 +126,7 @@ def crypto_masks(cg: CGFrame | None, s: CompSettings) -> np.ndarray | None:
     """Masques Cryptomatte HxWx3 (r = matte CG, g = reflets, b = ombres)."""
     if cg is None:
         return None
-    out = np.zeros((cg.height, cg.width, 3), np.float32)
+    out = np.zeros((cg.height, cg.width, 3), np.float16)
     by_name = {c.name: c for c in cg.crypto}
     for i, m in enumerate((s.cg_mask, s.reflection_mask, s.shadow_mask)):
         if not m.objects or not cg.crypto:
@@ -139,8 +141,9 @@ class Engine:
         self.ctx = ctx
         quad = np.array([-1, -1, 1, -1, -1, 1, 1, 1], "f4")
         self.vbo = ctx.buffer(quad.tobytes())
-        self.comp_prog = ctx.program(vertex_shader=VERT, fragment_shader=COMP_FRAG)
-        self.comp_vao = ctx.vertex_array(self.comp_prog, [(self.vbo, "2f", "in_pos")])
+        self.comp_prog = self.comp_vao = None
+        self.in_tex: list[tuple[str, object]] = []
+        self.input_key = None
         self.tex: dict[str, moderngl.Texture] = {}
         self.has: dict[str, bool] = {}
         self.size = (16, 16)
@@ -150,8 +153,38 @@ class Engine:
         self.display_key = None
         self._dummy = ctx.texture((1, 1), 4, np.zeros(4, "f4").tobytes(), dtype="f4")
         self.set_display(*color.default_display_view())
+        self.set_input(color.FLOG2)
 
-    # ------------------------------------------------------------ OCIO display
+    # ------------------------------------------------------------ OCIO
+    def _luts(self, g, old):
+        for _, t in old:
+            t.release()
+        out = []
+        for sampler, kind, size, ch, data, linear in g.textures:
+            if kind == "3d":
+                t = self.ctx.texture3d(size, ch, data.tobytes(), dtype="f4")
+            else:
+                t = self.ctx.texture(size, ch, data.tobytes(), dtype="f4")
+                t.repeat_x = t.repeat_y = False
+            f = moderngl.LINEAR if linear else moderngl.NEAREST
+            t.filter = (f, f)
+            out.append((sampler, t))
+        return out
+
+    def set_input(self, space: str):
+        """Transformation d'entrée du rush (-> ACEScg) compilée dans le shader de comp."""
+        if self.input_key == space:
+            return
+        g = color.GpuInput(space)
+        prog = self.ctx.program(vertex_shader=VERT, fragment_shader=COMP_FRAG_HEAD + g.glsl + COMP_FRAG)
+        self.in_tex = self._luts(g, self.in_tex)
+        if self.comp_prog:
+            self.comp_vao.release()
+            self.comp_prog.release()
+        self.comp_prog = prog
+        self.comp_vao = self.ctx.vertex_array(prog, [(self.vbo, "2f", "in_pos")])
+        self.input_key = space
+
     def set_display(self, display: str, view: str):
         if self.display_key == (display, view):
             return
@@ -183,12 +216,13 @@ class Engine:
             self.has[name] = False
             return
         h, w = arr.shape[:2]
-        data = np.ascontiguousarray(arr[..., :comps] if arr.ndim == 3 else arr, dtype="f4")
+        dt = "f2" if arr.dtype == np.float16 else "f4"
+        data = np.ascontiguousarray(arr[..., :comps] if arr.ndim == 3 else arr, dtype=dt)
         t = self.tex.get(name)
-        if t is None or t.size != (w, h) or t.components != comps:
+        if t is None or t.size != (w, h) or t.components != comps or t.dtype != dt:
             if t:
                 t.release()
-            t = self.ctx.texture((w, h), comps, dtype="f4")
+            t = self.ctx.texture((w, h), comps, dtype=dt)
             t.repeat_x = t.repeat_y = False
             t.filter = (moderngl.LINEAR, moderngl.LINEAR)
             self.tex[name] = t
@@ -241,6 +275,9 @@ class Engine:
         for i, (u, n) in enumerate(units.items()):
             (self.tex[n] if self.has.get(n) else self._dummy).use(i)
             self._bind(p, u, i)
+        for k, (sampler, t) in enumerate(self.in_tex):
+            t.use(len(units) + k)
+            self._bind(p, sampler, len(units) + k)
         has_cg = self.has.get("beauty", False)
         self._set(p, "has_plate", self.has.get("plate", False))
         self._set(p, "has_cg", has_cg)

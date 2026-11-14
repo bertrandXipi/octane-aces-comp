@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import functools
+import locale
 import numpy as np
 import PyOpenColorIO as ocio
 
@@ -108,13 +109,16 @@ def from_working_cpu(rgb: np.ndarray, dst: str) -> np.ndarray:
     return a
 
 
-class GpuDisplay:
-    """Shader GLSL OCIO (ACEScg -> display/view) + ses LUT, prêt pour ModernGL."""
+class GpuTransform:
+    """Shader GLSL OCIO d'un processeur + ses LUT, prêt pour ModernGL."""
 
-    def __init__(self, display: str, view: str):
-        proc = _display_proc(display, view).getDefaultGPUProcessor()
+    def __init__(self, processor, function: str, prefix: str):
+        # Qt passe LC_NUMERIC en locale système (fr : virgule décimale) : OCIO écrirait
+        # « 0,032 » dans le GLSL et le compilateur Apple plante. On force le point.
+        locale.setlocale(locale.LC_NUMERIC, "C")
+        proc = processor.getDefaultGPUProcessor()
         desc = ocio.GpuShaderDesc.CreateShaderDesc(
-            language=ocio.GPU_LANGUAGE_GLSL_4_0, functionName="OCIODisplay", resourcePrefix="ocio_")
+            language=ocio.GPU_LANGUAGE_GLSL_4_0, functionName=function, resourcePrefix=prefix)
         desc.setAllowTexture1D(False)  # ModernGL n'a pas de textures 1D -> 2D
         proc.extractGpuShaderInfo(desc)
         self.glsl = desc.getShaderText()
@@ -130,3 +134,13 @@ class GpuDisplay:
                                   np.asarray(t.getValues(), np.float32),
                                   t.interpolation != ocio.INTERP_NEAREST))
         self.uniforms = list(desc.getUniforms())
+
+
+def GpuDisplay(display: str, view: str) -> GpuTransform:
+    """ACEScg -> display/view (Output Transform ACES)."""
+    return GpuTransform(_display_proc(display, view), "OCIODisplay", "ocio_")
+
+
+def GpuInput(space: str) -> GpuTransform:
+    """Espace d'entrée -> ACEScg (ex. F-Log2 F-Gamut), appliqué au rush sur GPU."""
+    return GpuTransform(config().getProcessor(space, WORKING), "OCIOInput", "ocioin_")
