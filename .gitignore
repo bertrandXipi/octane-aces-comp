@@ -11,3 +11,4 @@ rendu/
 *.exr
 *.mov
 .claude/autoharness/
+.playwright-mcp/

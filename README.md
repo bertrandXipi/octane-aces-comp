@@ -1,5 +1,16 @@
 # Compositing GPU temps réel Octane / F-Log2 ACES
 
+**Démo dans le navigateur : https://bertrandxipi.github.io/octane-aces-comp/**
+
+![Aperçu](docs/media/apercu.jpg)
+
+Application locale de compositing GPU temps réel : passes EXR Octane (Beauty, Diffuse, Reflection, Shadow, Cryptomatte)
+sur un rush Fujifilm F-Log2, pipeline ACES strict via OpenColorIO 2. Interface inspirée de Nuke (PySide6 + ModernGL),
+rendu batch offscreen conforme à l'aperçu. La démo web reprend le même modèle de comp et les mêmes shaders couleur
+générés par OCIO, sur une scène de synthèse (passes transportées en vidéo 8 bits encodée log).
+
+## Brief d'origine
+
 Objectif : Créer une application locale de compositing temps réel sur GPU pour intégrer des passes de rendu EXR Octane sur des rushs vidéo Fujifilm F-Log2 dans un pipeline couleur ACES strict.
 
 Périmètre & Fonctionnalités :
@@ -18,7 +29,6 @@ Definition of Done :
 - Les paramètres s'exportent et se réimportent fidèlement via JSON.
 - La commande batch traite les 900 frames en rendu offscreen conforme à la prévisualisation.
 
-_Projet créé depuis le cockpit le 2026-11-14._
 
 ## Utilisation
 
@@ -50,3 +60,9 @@ Pipette Cryptomatte : bouton « Pipette » puis clic dans le viewer (Maj+clic re
 ### Passes reconnues
 Beauty = canaux sans préfixe (ou couche beauty/rgba), `Diffuse`, `Reflection`/`Specular`, `Shadow`, Cryptomatte selon la spec (métadonnées `cryptomatte/<id>/…`).
 Modèle : `cg = beauty + (k_diff−1)·diffuse + (k_refl·teinte−1)·reflection·matte`, ombre `bg·mix(1, couleur, shadow·densité·matte)`, puis over.
+
+### Démo web (docs/)
+Page statique (GitHub Pages) : `scripts/export_web.py` assemble les passes de démo en une vidéo mosaïque 3×3 et exporte
+les shaders GLSL ES 3.0 générés par OCIO (`docs/ocio.js`). Le compositing tourne dans un shader WebGL2.
+
+    .venv/bin/python scripts/export_web.py demo/reglages_demo.json --frames 360

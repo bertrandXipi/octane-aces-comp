@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Octane Comp ACES</title>
+<meta name="description" content="Compositing GPU temps réel de passes Octane (EXR, Cryptomatte) sur un rush Fujifilm F-Log2, en pipeline ACES / OpenColorIO. Démo dans le navigateur.">
+<meta property="og:title" content="Octane Comp ACES — démo navigateur">
+<meta property="og:description" content="Passes Octane + Cryptomatte sur rush F-Log2, ACES 2.0 via OpenColorIO, shaders GPU temps réel.">
+<meta property="og:image" content="https://bertrandxipi.github.io/octane-aces-comp/media/apercu.jpg">
+<meta property="og:url" content="https://bertrandxipi.github.io/octane-aces-comp/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#2b2b2b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23323232'/%3E%3Ccircle cx='6' cy='8' r='3.2' fill='%23c9c9c9'/%3E%3Ccircle cx='11' cy='9' r='2.2' fill='%23f0962e'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="appbar">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Octane Comp <span class="dim">— ACES</span></div>
+  <nav>
+    <button class="link" id="aboutBtn" type="button">À propos</button>
+    <a class="link" href="https://github.com/bertrandXipi/octane-aces-comp" target="_blank" rel="noopener">Code source</a>
+  </nav>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <div class="tabbar"><span class="tab on">Viewer1</span></div>
+    <div class="viewerbar">
+      <div class="row">
+        <select id="channel" title="Canal affiché">
+          <option value="0">rgba</option><option value="1">red</option><option value="2">green</option>
+          <option value="3">blue</option><option value="4">alpha</option><option value="5">luminance</option>
+        </select>
+        <div class="seg" id="mode" role="group" aria-label="Comparaison A/B">
+          <button data-v="0" class="on" title="Comp réglée">A</button>
+          <button data-v="1" title="Référence">B</button>
+          <button data-v="2" title="Volet A/B (glisser la ligne)">wipe</button>
+          <button data-v="3" title="Différence |A−B|">diff</button>
+        </div>
+        <label class="mini">B <select id="bsrc" title="Référence B">
+          <option value="0">plate</option><option value="1">CG brut</option></select></label>
+        <label class="mini">matte <select id="overlay" title="Superposer un masque Cryptomatte">
+          <option value="-1">off</option><option value="0">CG</option><option value="1">reflets</option><option value="2">ombres</option></select></label>
+        <span class="grow"></span>
+        <span class="pill" title="Output Transform OCIO" id="viewName"></span>
+      </div>
+      <div class="row">
+        <div class="knob compact" data-view="exposure" data-min="-6" data-max="6" data-def="0" data-dec="2"><span class="lbl">f/stop</span></div>
+        <div class="knob compact" data-view="gamma" data-min="0.2" data-max="3" data-def="1" data-dec="2"><span class="lbl">γ</span></div>
+      </div>
+    </div>
+
+    <div class="viewer" id="viewerBox">
+      <canvas id="gl"></canvas>
+      <div class="splash" id="splash"><div class="spinner"></div><span>Chargement des passes…</span></div>
+    </div>
+    <div class="infobar" id="info">&nbsp;</div>
+    <div class="timeline">
+      <button id="first" title="Première frame">|◀</button>
+      <button id="prev" title="Frame précédente (←)">◀|</button>
+      <button id="play" title="Lecture / pause (Espace)">▶</button>
+      <button id="next" title="Frame suivante (→)">|▶</button>
+      <input type="number" id="frameNum" value="1" min="1" aria-label="Frame">
+      <input type="range" id="scrub" min="0" value="0" aria-label="Timeline">
+      <span class="dim mono" id="range"></span>
+      <span class="dim mono fps" id="fps"></span>
+    </div>
+    <div class="tabbar graphTab"><span class="tab on">Node Graph</span></div>
+    <div class="graph" id="graph"></div>
+  </section>
+
+  <aside class="right">
+    <div class="tabbar"><span class="tab on">Properties</span></div>
+    <div class="props" id="props"></div>
+  </aside>
+</main>
+
+<footer class="status">
+  <span id="status"></span>
+  <span class="dim mono" id="gpu"></span>
+</footer>
+
+<dialog id="about">
+  <h2>Octane Comp — ACES</h2>
+  <p>Outil de compositing GPU temps réel : il intègre des passes de rendu <b>Octane</b> (Beauty, Diffuse, Reflection, Shadow, Cryptomatte) sur un rush <b>Fujifilm F-Log2</b>, dans un pipeline <b>ACES</b> strict piloté par <b>OpenColorIO 2</b>.</p>
+  <ul>
+    <li>F-Log2 F-Gamut → ACEScg, compositing en linéaire, puis Output Transform ACES 2.0 (sRGB).</li>
+    <li>Les shaders de couleur de cette page sont générés par OpenColorIO, comme dans l'application de bureau (Python, PySide6, ModernGL).</li>
+    <li>Dosage des reflets et de la densité d'ombre, limité par masque Cryptomatte (pipette), inspection A/B, wipe, différence.</li>
+    <li>L'application de bureau lit les EXR multi-passes, enregistre les réglages en JSON et rend 900 frames hors écran en EXR half, TIFF 16 bits ou ProRes, conformes à l'aperçu.</li>
+  </ul>
+  <p class="dim">Démo : scène de synthèse générée pour l'occasion. Dans le navigateur, les passes voyagent dans une vidéo 8 bits (encodage log), donc un peu moins de précision que les EXR de l'application de bureau.</p>
+  <p class="dim">Raccourcis : Espace lecture · ← → frame · 1/2 A/B · W wipe · D diff · F cadrer · molette zoom · Alt+glisser déplacer.</p>
+  <form method="dialog"><button class="primary">Fermer</button></form>
+</dialog>
+
+<video id="video" src="media/passes.mp4" muted playsinline loop preload="auto" crossorigin="anonymous"></video>
+<script type="module" src="app.js"></script>
+</body>
+</html>
