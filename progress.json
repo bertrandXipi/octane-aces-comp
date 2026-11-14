@@ -24,6 +24,10 @@
   {
    "date": "2026-11-14",
    "evt": "v1 : moteur, UI façon Nuke, batch, démo 900 frames, contrôle de conformité"
+  },
+  {
+   "date": "2026-11-14",
+   "evt": "Démo web WebGL2 publiée : https://bertrandxipi.github.io/octane-aces-comp/ (dépôt public bertrandXipi/octane-aces-comp, Pages depuis main/docs)"
   }
  ]
 }
