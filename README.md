@@ -1,13 +1,24 @@
-# Compositing GPU temps réel Octane / F-Log2 ACES
+# Octane Comp — ACES
 
-**Démo dans le navigateur : https://bertrandxipi.github.io/octane-aces-comp/**
+**Live browser demo: https://bertrandxipi.github.io/octane-aces-comp/**
 
-![Aperçu](docs/media/apercu.jpg)
+![Preview](docs/media/apercu.jpg)
 
-Application locale de compositing GPU temps réel : passes EXR Octane (Beauty, Diffuse, Reflection, Shadow, Cryptomatte)
-sur un rush Fujifilm F-Log2, pipeline ACES strict via OpenColorIO 2. Interface inspirée de Nuke (PySide6 + ModernGL),
-rendu batch offscreen conforme à l'aperçu. La démo web reprend le même modèle de comp et les mêmes shaders couleur
-générés par OCIO, sur une scène de synthèse (passes transportées en vidéo 8 bits encodée log).
+A local, real-time GPU compositing app that integrates **Octane** EXR render passes (Beauty, Diffuse, Reflection,
+Shadow, Cryptomatte) over **Fujifilm F-Log2** footage, in a strict **ACES** pipeline driven by **OpenColorIO 2**.
+Nuke-inspired UI (PySide6 + ModernGL), offscreen batch rendering that matches the viewer.
+
+- F-Log2 F-Gamut is added to the built-in ACES 2.0 studio config (Fujifilm curve + Rec.2020 primaries).
+- Plate → ACEScg and ACEScg → display are OCIO-generated GLSL shaders, shared by the viewer and the batch renderer.
+- Reflection gain / shadow density isolated with Cryptomatte mattes (picker), A/B, wipe and difference views.
+- Settings saved as JSON; batch renders 900 frames to half-float EXR, 16-bit TIFF or ProRes.
+- The web demo runs the same comp model and OCIO shaders in WebGL2, on a synthetic scene
+  (passes carried in an 8-bit log-encoded video).
+
+Contact: [WhatsApp](https://wa.me/33649111806)
+
+Quick start: `./octacomp demo/reglages_demo.json` (creates `.venv` on first run; needs `uv` and `ffmpeg`).
+The rest of this README (French) documents the original brief and the pipeline details.
 
 ## Brief d'origine
 

@@ -156,3 +156,18 @@ dialog li { margin: 4px 0; }
   .node-body { grid-template-columns: 78px minmax(0, 1fr); }
   .status span:last-child { display: none; }
 }
+
+/* contact WhatsApp */
+.wa { display: inline-flex; align-items: center; gap: 6px; background: #1f7a4a; color: #fff; border: 1px solid #165c37;
+  border-radius: 3px; padding: 4px 10px; text-decoration: none; font-weight: 600; white-space: nowrap; }
+.wa:hover { background: #239257; }
+.wa-ico { width: 15px; height: 15px; flex: none; }
+.wa-short { display: none; }
+.appbar nav { align-items: center; }
+.about-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.about-actions form { margin: 0; }
+@media (max-width: 600px) {
+  .wa-long { display: none; }
+  .wa-short { display: inline; }
+  .brand .dim { display: none; }
+}

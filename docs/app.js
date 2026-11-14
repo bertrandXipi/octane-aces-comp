@@ -104,7 +104,7 @@ function compile(type, src) {
 }
 let prog, U = {}, atlasTex, lutUnits = [];
 function initGL() {
-  if (!gl) throw new Error("WebGL2 indisponible sur ce navigateur");
+  if (!gl) throw new Error("WebGL2 is not available in this browser");
   prog = gl.createProgram();
   gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
   gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
@@ -260,7 +260,7 @@ function initTimeline() {
   $("#frameNum").addEventListener("change", (e) => { pause(); seek(+e.target.value - 1); });
   video.addEventListener("seeked", () => { needUpload = true; });
   video.addEventListener("loadeddata", () => { needUpload = true; $("#splash").classList.add("hide"); });
-  video.addEventListener("error", () => { $("#splash").innerHTML = "<span>Impossible de lire la vidéo des passes.</span>"; });
+  video.addEventListener("error", () => { $("#splash").innerHTML = "<span>Could not play the passes video.</span>"; });
 }
 function togglePlay() { video.paused ? play() : pause(); }
 function play() { video.play().catch(() => {}); $("#play").textContent = "❚❚"; }
@@ -297,10 +297,10 @@ function toImage(e) {
 function setIdleInfo() {
   const info = $("#info");
   info.classList.toggle("pick", !!picking);
-  if (picking) { info.textContent = "PIPETTE CRYPTOMATTE · clic : ajouter l'objet · Maj+clic : retirer · Échap : quitter"; return; }
+  if (picking) { info.textContent = "CRYPTOMATTE PICKER · click: add object · Shift+click: remove · Esc: exit"; return; }
   const [iw, ih] = META.source;
-  const m = ["A", "B", "wipe A | B", "différence"][V.mode];
-  info.textContent = `${iw}×${ih} · frame ${curFrame() + 1}/${NFR} · vue ${m}`;
+  const m = ["A", "B", "wipe A | B", "difference"][V.mode];
+  info.textContent = `${iw}×${ih} · frame ${curFrame() + 1}/${NFR} · view ${m}`;
 }
 function initViewer() {
   canvas.addEventListener("wheel", (e) => {
@@ -340,7 +340,7 @@ function initViewer() {
       hovering = true;
       const [iw, ih] = META.source;
       const name = objectAt(p.u, p.v);
-      $("#info").textContent = `${picking ? "PIPETTE · " : ""}x ${Math.floor(p.u * iw)}  y ${Math.floor(p.v * ih)}` + (name ? `  ·  ${name}` : "");
+      $("#info").textContent = `${picking ? "PICKER · " : ""}x ${Math.floor(p.u * iw)}  y ${Math.floor(p.v * ih)}` + (name ? `  ·  ${name}` : "");
       const h = document.getElementById("hoverObj");
       if (h) h.textContent = name || "—";
     } else if (hovering) { hovering = false; setIdleInfo(); }
@@ -359,7 +359,7 @@ function knob(el, get, set) {
   num.type = "number"; num.step = dec >= 3 ? "0.01" : "0.1";
   const rng = document.createElement("input");
   rng.type = "range"; rng.min = min; rng.max = max; rng.step = (max - min) / 1000;
-  rng.title = "Double-clic : valeur par défaut";
+  rng.title = "Double-click: reset to default";
   const show = (v) => { num.value = (+v).toFixed(dec); rng.value = v; };
   show(get());
   num.addEventListener("change", () => { const v = +num.value; if (!isNaN(v)) { set(v); show(v); } });
@@ -435,7 +435,7 @@ function panel(name, klass, color) {
         n.addEventListener("change", () => { const c = getPath(path).slice(); c[i] = Math.max(0, +n.value || 0); setPath(path, c); show(); });
         return n;
       });
-      const sw = document.createElement("input"); sw.type = "color"; sw.title = "Couleur (encodée sRGB, stockée linéaire)";
+      const sw = document.createElement("input"); sw.type = "color"; sw.title = "Colour (sRGB-encoded picker, stored linear)";
       sw.addEventListener("input", () => {
         const h = sw.value; const c = [1, 3, 5].map((o) => Math.pow(parseInt(h.substr(o, 2), 16) / 255, 2.2));
         setPath(path, c); show();
@@ -460,14 +460,14 @@ function panel(name, klass, color) {
     matte(label, key) {
       const el = document.createElement("div"); el.className = "matte";
       const btns = document.createElement("div"); btns.className = "btns";
-      const pick = document.createElement("button"); pick.textContent = "Pipette"; pick.dataset.matte = key;
-      pick.title = "Cliquer un objet dans le viewer";
+      const pick = document.createElement("button"); pick.textContent = "Picker"; pick.dataset.matte = key;
+      pick.title = "Click an object in the viewer";
       pick.onclick = () => setPicking(picking === key ? null : key);
-      const clear = document.createElement("button"); clear.textContent = "Vider";
+      const clear = document.createElement("button"); clear.textContent = "Clear";
       clear.onclick = () => { S[key].objects = []; renderChips(); };
       const inv = document.createElement("label"); inv.className = "check";
       const ic = document.createElement("input"); ic.type = "checkbox"; ic.onchange = () => (S[key].invert = ic.checked);
-      inv.append(ic, document.createTextNode("inv."));
+      inv.append(ic, document.createTextNode("invert"));
       btns.append(pick, clear, inv);
       const chips = document.createElement("div"); chips.className = "chips";
       const renderChips = () => {
@@ -475,7 +475,7 @@ function panel(name, klass, color) {
         OBJ.forEach((o) => {
           const c = document.createElement("span");
           c.className = "chip" + (S[key].objects.includes(o) ? " on" : "");
-          c.textContent = o; c.title = "Cliquer pour ajouter / retirer";
+          c.textContent = o; c.title = "Click to add / remove";
           c.onclick = () => toggleObject(key, o, !S[key].objects.includes(o));
           chips.append(c);
         });
@@ -512,7 +512,7 @@ function setPicking(key) {
 
 function buildProps() {
   let p = panel("Read1", "Read", "#9a9a9a");
-  p.info("file", "plate_flog2.mov  (démo de synthèse)");
+  p.info("file", "plate_flog2.mov  (synthetic demo)");
   p.info("input transform", META.plateSpace + " → ACEScg");
   p.float("exposure", "plate_exposure", -4, 4, 0, 2);
   p = panel("Read2", "Read", "#9a9a9a");
@@ -521,37 +521,37 @@ function buildProps() {
   p.info("input transform", "ACEScg");
   p = panel("Cryptomatte1", "Cryptomatte", "#7f9a45");
   p.info("layer", META.cryptoLayer);
-  p.info("manifest", `${OBJ.length} objets : ${OBJ.join(", ")}`);
-  p.info("sous le curseur", "—", "hoverObj");
+  p.info("manifest", `${OBJ.length} objects: ${OBJ.join(", ")}`);
+  p.info("under cursor", "—", "hoverObj");
   p = panel("Recompose1", "Recompose", "#6c9a6a");
   p.float("gain", "cg_gain", 0, 4, 1);
   p.float("diffuse", "diffuse_gain", 0, 4, 1);
-  p.section("reflets");
-  p.float("balance reflets", "reflection_gain", 0, 4, 1);
-  p.color("teinte", "reflection_tint");
+  p.section("reflections");
+  p.float("reflection gain", "reflection_gain", 0, 4, 1);
+  p.color("tint", "reflection_tint");
   p.matte("matte", "reflection_mask");
-  p.float("mix masque", "reflection_mask.mix", 0, 1, 1);
+  p.float("mask mix", "reflection_mask.mix", 0, 1, 1);
   p = panel("ShadowCatcher1", "ShadowCatcher", "#8a7d9e");
-  p.float("densité", "shadow_density", 0, 3, 1);
-  p.color("couleur", "shadow_color");
-  p.check("", "inverser la passe Shadow", "shadow_invert");
+  p.float("density", "shadow_density", 0, 3, 1);
+  p.color("colour", "shadow_color");
+  p.check("", "invert Shadow pass", "shadow_invert");
   p.matte("matte", "shadow_mask");
-  p.float("mix masque", "shadow_mask.mix", 0, 1, 1);
+  p.float("mask mix", "shadow_mask.mix", 0, 1, 1);
   p = panel("Merge1", "Merge", "#4f78a8");
   p.info("operation", "over");
   p.matte("matte CG", "cg_mask");
-  p.float("mix masque", "cg_mask.mix", 0, 1, 1);
+  p.float("mask mix", "cg_mask.mix", 0, 1, 1);
   p = panel("OCIODisplay1", "OCIODisplay", "#6c9a6a");
   p.info("config", `${META.config} + F-Log2 F-Gamut`);
-  p.info("OCIO", META.ocioVersion + " (shaders GLSL générés)");
+  p.info("OCIO", META.ocioVersion + " (generated GLSL shaders)");
   p.info("display / view", `${META.display} · ${META.view}`);
 
   const tools = document.createElement("div");
   tools.className = "tools";
   const mk = (t, title, fn) => { const b = document.createElement("button"); b.className = "tool"; b.textContent = t; b.title = title; b.onclick = fn; tools.append(b); };
-  mk("Exporter JSON", "Réglages au format de l'application (rendu batch)", exportJSON);
-  mk("Importer JSON", "Recharger des réglages", () => fileIn.click());
-  mk("Réinitialiser", "Revenir aux réglages de la démo", () => { Object.assign(S, deep(DEFAULTS)); refreshers.forEach((f) => f()); });
+  mk("Export JSON", "Settings in the desktop app format (batch render)", exportJSON);
+  mk("Import JSON", "Load settings", () => fileIn.click());
+  mk("Reset", "Back to the demo settings", () => { Object.assign(S, deep(DEFAULTS)); refreshers.forEach((f) => f()); });
   const fileIn = document.createElement("input"); fileIn.type = "file"; fileIn.accept = ".json,application/json"; fileIn.hidden = true;
   fileIn.onchange = async () => {
     const f = fileIn.files[0]; if (!f) return;
@@ -559,13 +559,13 @@ function buildProps() {
       const d = JSON.parse(await f.text());
       for (const k of Object.keys(DEFAULTS)) if (k in d) S[k] = d[k];
       refreshers.forEach((fn) => fn());
-    } catch (e) { $("#status").textContent = "JSON illisible : " + e.message; }
+    } catch (e) { $("#status").textContent = "Unreadable JSON: " + e.message; }
     fileIn.value = "";
   };
   tools.append(fileIn);
   $("#props").append(tools);
   refreshers.forEach((f) => f());
-  if (window.matchMedia("(max-width: 980px)").matches) {  // téléphone : on va droit aux réglages
+  if (window.matchMedia("(max-width: 980px)").matches) {  // phone: jump straight to the controls
     for (const n of ["Read1", "Read2", "Cryptomatte1", "OCIODisplay1"]) {
       panels[n].classList.add("collapsed");
       panels[n].querySelector(".chev").textContent = "▸";
@@ -583,7 +583,7 @@ function exportJSON() {
 // ------------------------------------------------------------------ Node Graph
 function buildGraph() {
   const N = { Read1: [0, 0, "F-Log2 rush"], Read2: [300, 0, "Octane EXR"], Cryptomatte1: [470, 55, ""],
-    Recompose1: [300, 100, "diffuse · reflets"], ShadowCatcher1: [0, 100, "densité ombres"],
+    Recompose1: [300, 100, "diffuse · reflections"], ShadowCatcher1: [0, 100, "shadow density"],
     Merge1: [150, 175, "over"], OCIODisplay1: [150, 235, ""], Viewer1: [150, 290, ""] };
   const C = { Read1: "#9a9a9a", Read2: "#9a9a9a", Cryptomatte1: "#7f9a45", Recompose1: "#6c9a6a",
     ShadowCatcher1: "#8a7d9e", Merge1: "#4f78a8", OCIODisplay1: "#6c9a6a", Viewer1: "#b8945a" };
@@ -644,10 +644,10 @@ function initKeys() {
 
 // ------------------------------------------------------------------ démarrage
 function start() {
-  $("#status").textContent = `working ACEScg · rush ${META.plateSpace} → ACEScg · CG ACEScg · sortie ${META.display} · ${META.view} · OCIO ${META.ocioVersion} · scène de synthèse`;
+  $("#status").textContent = `working ACEScg · rush ${META.plateSpace} → ACEScg · CG ACEScg · output ${META.display} · ${META.view} · OCIO ${META.ocioVersion} · synthetic scene`;
   $("#aboutBtn").onclick = () => $("#about").showModal();
   try { initGL(); } catch (e) {
-    $("#splash").innerHTML = `<span>WebGL2 indisponible : ${e.message.slice(0, 200)}</span>`;
+    $("#splash").innerHTML = `<span>WebGL2 unavailable: ${e.message.slice(0, 200)}</span>`;
     console.error(e);
     return;
   }
