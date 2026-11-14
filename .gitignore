@@ -10,3 +10,4 @@ demo_small/
 rendu/
 *.exr
 *.mov
+.claude/autoharness/
